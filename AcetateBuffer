@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Monte Carlo estimation of the ionic strength of a NaOAc/HCl acetate buffer.
 
