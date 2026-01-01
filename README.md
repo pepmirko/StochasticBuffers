@@ -100,4 +100,4 @@ I contributi sono benvenuti! Sentiti libero di aprire una *issue* o inviare una 
 Distribuito sotto licenza MIT. Vedi `LICENSE` per maggiori informazioni.
 
 ---
-*Autore: [Il Tuo Nome] - Tesi Triennale/Progetto di Ricerca - 2026*
+*Autore: Mirko Caruso - Tesi Triennale*
