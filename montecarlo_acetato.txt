@@ -1,0 +1,115 @@
+================================================================================
+DOCUMENTAZIONE TECNICA: SIMULATORE BUFFER "ULTIMATE" (ACETATO)
+================================================================================
+Data: 01 Gennaio 2026
+Linguaggio: Python 3.x
+Framework: Streamlit
+Autore: [Il Tuo Nome]
+
+1. INTRODUZIONE
+--------------------------------------------------------------------------------
+Questo software è un simulatore stocastico progettato per analizzare la propagazione 
+dell'incertezza sperimentale nella preparazione di un tampone chimico (tampone acetato).
+Il sistema calcola la Forza Ionica (I), la Capacità Tamponante (Beta) e il pH teorico, 
+utilizzando metodi Monte Carlo (MC) e Latin Hypercube Sampling (LHS).
+
+2. ARCHITETTURA DEL CODICE
+--------------------------------------------------------------------------------
+Il codice è strutturato secondo il pattern "Backend/Frontend", anche se risiede in un
+unico file script (`app.py`).
+
+A. LIBRERIE UTILIZZATE
+   - Streamlit: Per l'interfaccia utente web interattiva.
+   - NumPy / Pandas: Per il calcolo vettoriale e la gestione dei dati.
+   - Matplotlib / Seaborn: Per la generazione dei grafici statici.
+   - SciPy (stats.qmc): Per il campionamento avanzato (Latin Hypercube).
+   - Dataclasses: Per la strutturazione pulita dei parametri di input.
+
+3. MOTORE CHIMICO (Classe `ChemEngine`)
+--------------------------------------------------------------------------------
+Questa classe contiene tutta la logica fisico-chimica. È "statica", ovvero non mantiene
+stato, ma esegue calcoli puri basati sugli input.
+
+   3.1. Correzioni Termodinamiche
+   - vant_hoff(K_ref, delta_H, T_k):
+     Ricalcola le costanti di equilibrio (Ka dell'acido acetico e Kw dell'acqua) 
+     in base alla temperatura inserita dall'utente, usando l'equazione di van't Hoff.
+
+   3.2. Attività e Forza Ionica
+   - davies_gamma(I, z):
+     Calcola il coefficiente di attività (gamma) utilizzando l'equazione di Davies.
+     È essenziale perché a concentrazioni > 0.1 M, l'idealità non è più valida.
+
+   3.3. Solver Iterativo (solve_system)
+     Il calcolo della Forza Ionica (I) è circolare: 
+     I dipende dalle concentrazioni -> le concentrazioni dipendono dall'attività -> 
+     l'attività dipende da I.
+     Il codice risolve questo problema con un ciclo "Fixed-Point Iteration":
+     1. Stima I iniziale (assumendo I = concentrazione sale).
+     2. Calcola gamma.
+     3. Ricalcola le concentrazioni all'equilibrio (H+, OH-, Ac-, Na+, Cl-).
+     4. Ricalcola I.
+     5. Ripete finché la differenza tra due iterazioni è < 1e-8 (convergenza).
+
+   3.4. Capacità Tamponante (calc_beta)
+     Calcola il valore beta (resistenza al cambio di pH) sommando i contributi di:
+     - Acido forte/Base forte (H+ e OH- liberi).
+     - Coppia coniugata Acido/Base debole (Termine principale del tampone).
+
+   3.5. pH Teorico (calc_theoretical_ph)
+     Esegue una validazione inversa. Dati i reagenti pesati (Massa NaOAc e Vol HCl),
+     calcola quale DOVREBBE essere il pH teorico usando l'equazione di 
+     Henderson-Hasselbalch modificata con i coefficienti di attività.
+
+4. GESTORE SIMULAZIONI (Classe `SimulationManager`)
+--------------------------------------------------------------------------------
+Gestisce la generazione dei numeri casuali e l'analisi statistica.
+
+   4.1. Metodi di Campionamento
+   - generate_mc(n): Campionamento casuale semplice (Monte Carlo). Veloce ma meno
+     uniforme.
+   - generate_lhs(n): Campionamento "Latin Hypercube". Divide lo spazio delle 
+     probabilità in "n" intervalli equiprobabili. Garantisce una copertura migliore
+     dello spazio degli input con meno iterazioni rispetto al Monte Carlo.
+
+   4.2. Analisi di Convergenza (check_convergence)
+   - Calcola la media cumulativa passo dopo passo.
+   - Confronta l'errore relativo tra la media corrente e quella finale.
+   - Determina lo "Step di Convergenza": il punto in cui l'errore scende stabilmente
+     sotto la soglia (es. 0.01%).
+
+   4.3. Animazioni
+   - Genera file GIF che mostrano l'istogramma della distribuzione evolversi nel tempo,
+     dando un feedback visivo su come la distribuzione si stabilizza all'aumentare
+     delle simulazioni ("Legge dei Grandi Numeri").
+
+5. INTERFACCIA UTENTE (Funzione `main`)
+--------------------------------------------------------------------------------
+L'interfaccia è costruita per guidare l'utente attraverso il processo analitico.
+
+   5.1. Sidebar (Input)
+   - Divisa in sezioni logiche (Reagenti, Volumi, Condizioni).
+   - Utilizza slider doppi per MC e LHS per ottimizzare le performance (MC leggero 
+     per animazioni, LHS pesante per precisione).
+   - "Dark Mode" forzata tramite CSS injection per garantire leggibilità.
+
+   5.2. Output e Visualizzazione
+   - KPI Cards: Mostrano subito i risultati medi (I, Beta, pH) e l'incertezza.
+   - Tabella Riepilogo: Confronta Metodo Classico vs Stocastico.
+
+   5.3. Sezioni "Expandable" (Menu a tendina)
+   - Sez 1 (Validazione): Confronta pH Misurato vs Teorico per individuare bias.
+   - Sez 2 (Convergenza): Grafici dell'errore relativo e stabilizzazione media.
+     *Include un fix per evitare il troncamento grafico sull'ultimo punto.*
+   - Sez 3 (Distribuzione): Confronto visivo tra istogrammi MC e LHS.
+   - Sez 4 (Correlazioni): Scatter plot con downsampling (punti trasparenti) 
+     per visualizzare come ogni input influenza l'output senza appesantire il rendering.
+
+6. NOTE DI UTILIZZO
+--------------------------------------------------------------------------------
+- Performance: Per simulazioni > 50.000 step, l'animazione GIF potrebbe richiedere
+  qualche secondo di elaborazione.
+- Convergenza: Se il sistema non converge, aumentare il numero di step o rilassare
+  la soglia di tolleranza.
+- Validazione: Un "Delta pH" elevato nella sezione 1 indica che i parametri misurati
+  (es. il pHmetro) non sono coerenti con la massa di reagenti dichiarata.
